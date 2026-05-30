@@ -1,22 +1,23 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/chamado.dart';
+import '../provedores/chamado_provider.dart';
 import '../utilitarios/formatadores_data.dart';
 import 'cadastro.dart';
 
-class TelaPainel extends StatefulWidget {
+class TelaPainel extends ConsumerStatefulWidget {
   const TelaPainel({super.key});
 
   @override
-  State<TelaPainel> createState() => _EstadoTelaPainel();
+  ConsumerState<TelaPainel> createState() => _EstadoTelaPainel();
 }
 
-class _EstadoTelaPainel extends State<TelaPainel> {
+class _EstadoTelaPainel extends ConsumerState<TelaPainel> {
   Timer? _clockTimer;
   DateTime _now = DateTime.now();
-  late final List<Chamado> _chamados = _gerarChamados();
 
   @override
   void initState() {
@@ -36,17 +37,20 @@ class _EstadoTelaPainel extends State<TelaPainel> {
 
   @override
   Widget build(BuildContext context) {
-    final total = _chamados.length;
-    final abertos = _chamados
+    final provider = ref.watch(chamadoProvider);
+    final chamados = provider.chamados;
+
+    final total = chamados.length;
+    final abertos = chamados
         .where((chamado) => chamado.status == 'Aberto')
         .length;
-    final andamento = _chamados
+    final andamento = chamados
         .where((chamado) => chamado.status == 'Em Andamento')
         .length;
-    final concluidos = _chamados
+    final concluidos = chamados
         .where((chamado) => chamado.status == 'Concluído')
         .length;
-    final criticos = _chamados
+    final criticos = chamados
         .where((chamado) => chamado.prioridade == 'Crítica')
         .length;
 
@@ -169,129 +173,38 @@ class _EstadoTelaPainel extends State<TelaPainel> {
               ],
             ),
             const SizedBox(height: 24),
-            Text(
-              'Chamados recentes',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
+            Text('Chamados ', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
-            ..._chamados.map(
+            ...chamados.map(
               (chamado) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
-                child: _ChamadoCard(chamado: chamado, currentDateTime: _now),
+                child: _ChamadoCard(
+                  chamado: chamado,
+                  currentDateTime: _now,
+                  onAlterarStatus: (novoStatus) async {
+                    if (novoStatus == chamado.status) return;
+
+                    final providerRead = ref.read(chamadoProvider);
+                    final messenger = ScaffoldMessenger.of(context);
+                    final atualizado = chamado.copyWith(status: novoStatus);
+                    await providerRead.atualizarChamado(atualizado);
+
+                    if (!mounted) return;
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          'Status atualizado para $novoStatus em ${chamado.titulo}.',
+                        ),
+                      ),
+                    );
+                  },
+                ),
               ),
             ),
           ],
         ),
       ),
     );
-  }
-
-  List<Chamado> _gerarChamados() {
-    return [
-      Chamado(
-        titulo: 'Buraco na Avenida Epitácio Pessoa',
-        descricao:
-            'Cratera em faixa de rolamento próxima a Tambauzinho e Miramar.',
-        categoria: 'Trânsito',
-        prioridade: 'Crítica',
-        bairro: 'Tambauzinho',
-        responsavel: 'SEMOB-JP',
-        dataAbertura: DateTime.now().subtract(const Duration(minutes: 18)),
-        status: 'Aberto',
-      ),
-      Chamado(
-        titulo: 'Semáforo apagado no Retão de Manaíra',
-        descricao:
-            'Equipamento parado em cruzamento com grande fluxo de veículos.',
-        categoria: 'Trânsito',
-        prioridade: 'Alta',
-        bairro: 'Manaíra',
-        responsavel: 'SEMOB-JP',
-        dataAbertura: DateTime.now().subtract(
-          const Duration(hours: 1, minutes: 12),
-        ),
-        status: 'Em Andamento',
-      ),
-      Chamado(
-        titulo: 'Vazamento de água na Rua das Trincheiras',
-        descricao:
-            'Registro de água correndo pela via e comprometendo a calçada.',
-        categoria: 'Saneamento',
-        prioridade: 'Crítica',
-        bairro: 'Centro',
-        responsavel: 'CAGEPA',
-        dataAbertura: DateTime.now().subtract(const Duration(hours: 3)),
-        status: 'Aberto',
-      ),
-      Chamado(
-        titulo: 'Lâmpadas apagadas na orla de Tambaú',
-        descricao:
-            'Trecho da orla com postes sem funcionamento no período noturno.',
-        categoria: 'Iluminação',
-        prioridade: 'Crítica',
-        bairro: 'Tambaú',
-        responsavel: 'Iluminação Pública',
-        dataAbertura: DateTime.now().subtract(
-          const Duration(hours: 5, minutes: 30),
-        ),
-        status: 'Em Andamento',
-      ),
-      Chamado(
-        titulo: 'Lixo acumulado no Centro Histórico',
-        descricao:
-            'Acúmulo de resíduos próximo ao fluxo turístico e comercial.',
-        categoria: 'Limpeza Urbana',
-        prioridade: 'Baixa',
-        bairro: 'Varadouro',
-        responsavel: 'Coleta Urbana',
-        dataAbertura: DateTime.now().subtract(
-          const Duration(days: 1, hours: 2),
-        ),
-        status: 'Concluído',
-      ),
-      Chamado(
-        titulo: 'Árvore caída após chuva no Cabo Branco',
-        descricao: 'Via parcialmente interditada após vento forte e chuva.',
-        categoria: 'Desastre Natural',
-        prioridade: 'Crítica',
-        bairro: 'Cabo Branco',
-        responsavel: 'Defesa Civil',
-        dataAbertura: DateTime.now().subtract(const Duration(minutes: 42)),
-        status: 'Aberto',
-      ),
-      Chamado(
-        titulo: 'Ocorrência de assalto em Manaíra',
-        descricao: 'Moradores relatam sensação de insegurança e pedem ronda.',
-        categoria: 'Segurança',
-        prioridade: 'Alta',
-        bairro: 'Manaíra',
-        responsavel: 'Guarda Municipal',
-        dataAbertura: DateTime.now().subtract(
-          const Duration(hours: 6, minutes: 10),
-        ),
-        status: 'Em Andamento',
-      ),
-      Chamado(
-        titulo: 'Enchente em Jaguaribe',
-        descricao: 'Alagamento em ruas secundárias após forte volume de chuva.',
-        categoria: 'Desastre Natural',
-        prioridade: 'Crítica',
-        bairro: 'Jaguaribe',
-        responsavel: 'Defesa Civil',
-        dataAbertura: DateTime.now().subtract(const Duration(minutes: 8)),
-        status: 'Aberto',
-      ),
-      Chamado(
-        titulo: 'Iluminação fraca no Bessa',
-        descricao: 'Postes com baixa luminosidade em trecho residencial.',
-        categoria: 'Iluminação',
-        prioridade: 'Crítica',
-        bairro: 'Bessa',
-        responsavel: 'Iluminação Pública',
-        dataAbertura: DateTime.now().subtract(const Duration(minutes: 55)),
-        status: 'Aberto',
-      ),
-    ];
   }
 }
 
@@ -371,10 +284,21 @@ class _StatCard extends StatelessWidget {
 }
 
 class _ChamadoCard extends StatelessWidget {
-  const _ChamadoCard({required this.chamado, required this.currentDateTime});
+  const _ChamadoCard({
+    required this.chamado,
+    required this.currentDateTime,
+    required this.onAlterarStatus,
+  });
 
   final Chamado chamado;
   final DateTime currentDateTime;
+  final ValueChanged<String> onAlterarStatus;
+
+  static const List<String> _statusDisponiveis = [
+    'Aberto',
+    'Em Andamento',
+    'Concluído',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -411,13 +335,85 @@ class _ChamadoCard extends StatelessWidget {
             MaterialPageRoute(builder: (_) => TelaCadastro(chamado: chamado)),
           );
         },
-        trailing: Chip(
-          label: Text(chamado.prioridade),
-          backgroundColor: priorityColor.withValues(alpha: 0.12),
-          side: BorderSide(color: priorityColor.withValues(alpha: 0.25)),
-          labelStyle: TextStyle(
-            color: priorityColor,
-            fontWeight: FontWeight.w600,
+        trailing: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min, // Corrigido aqui
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Chip(
+                label: Text(chamado.prioridade),
+                backgroundColor: priorityColor.withValues(alpha: 0.12),
+                side: BorderSide(color: priorityColor.withValues(alpha: 0.25)),
+                labelStyle: TextStyle(
+                  color: priorityColor,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (chamado.status == 'Concluído')
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.lock_outline,
+                        size: 14,
+                        color: Colors.grey,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'Encerrado',
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(
+                              color: Colors.grey,
+                              fontWeight: FontWeight.bold,
+                            ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                PopupMenuButton<String>(
+                  tooltip: 'Alterar status',
+                  onSelected: onAlterarStatus,
+                  itemBuilder: (context) => _statusDisponiveis
+                      .map(
+                        (status) =>
+                            PopupMenuItem(value: status, child: Text(status)),
+                      )
+                      .toList(),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border.all(color: Theme.of(context).primaryColor),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'Mudar status',
+                          style: TextStyle(
+                            color: Theme.of(context).primaryColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 16,
+                          color: Theme.of(context).primaryColor,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

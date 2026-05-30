@@ -1,18 +1,42 @@
 import 'package:flutter/material.dart';
+import "package:flutter_riverpod/legacy.dart";
 import '../models/chamado.dart';
 import '../database/db_helper.dart';
 
-class ChamadoProvider extends ChangeNotifier {
-  List<Chamado> _chamados = [];
+final chamadoProvider = ChangeNotifierProvider<ChamadoProvider>((ref) {
+  final provider = ChamadoProvider();
+  provider.carregarChamados();
+  return provider;
+});
 
-  List<Chamado> get chamados {
+class ChamadoProvider extends ChangeNotifier {
+  List<Chamado> _chamadosBase = [];
+  List<Chamado> _chamadosProcessados = [];
+
+  List<Chamado> get chamados => _chamadosProcessados;
+
+  int get total => _chamadosProcessados.length;
+  int get abertos =>
+      _chamadosProcessados.where((c) => c.status == 'Aberto').length;
+  int get emAndamento =>
+      _chamadosProcessados.where((c) => c.status == 'Em Andamento').length;
+  int get concluidos =>
+      _chamadosProcessados.where((c) => c.status == 'Concluído').length;
+  int get criticos =>
+      _chamadosProcessados.where((c) => c.prioridade == 'Crítica').length;
+
+  bool get exibirAlertaCritico =>
+      _chamadosProcessados
+          .where((c) => c.prioridade == 'Crítica' && c.status != 'Concluído')
+          .length >
+      5;
+
+  void _atualizarListaProcessada() {
     final agora = DateTime.now();
 
-    List<Chamado> listaFiltrada = _chamados.where((c) {
+    List<Chamado> listaFiltrada = _chamadosBase.where((c) {
       if (c.status.toLowerCase() == 'concluído') {
-        final horasDesdeFechamento = agora
-            .difference(c.dataAbertura)
-            .inHours; // fallback
+        final horasDesdeFechamento = agora.difference(c.dataAbertura).inHours;
         return horasDesdeFechamento < 12;
       }
       return true;
@@ -34,32 +58,21 @@ class ChamadoProvider extends ChangeNotifier {
 
       return peso(b.prioridade).compareTo(peso(a.prioridade));
     });
-    return listaFiltrada;
-  }
 
-  int get total => chamados.length;
-  int get abertos => chamados.where((c) => c.status == 'Aberto').length;
-  int get emAndamento =>
-      chamados.where((c) => c.status == 'Em Andamento').length;
-  int get concluidos => chamados.where((c) => c.status == 'Concluído').length;
-  int get criticos => chamados.where((c) => c.prioridade == 'Crítica').length;
-
-  bool get exibirAlertaCritico =>
-      chamados
-          .where((c) => c.prioridade == 'Crítica' && c.status != 'Concluído')
-          .length >
-      5;
-
-  Future<void> carregarChamados() async {
-    final rows = await DbHelper.instance.fetchChamados();
-    _chamados = rows
-        .map((m) => Chamado.fromMap(Map<String, Object?>.from(m)))
-        .toList();
+    _chamadosProcessados = listaFiltrada;
     notifyListeners();
   }
 
+  Future<void> carregarChamados() async {
+    final rows = await DbHelper.instance.fetchChamados();
+    _chamadosBase = rows
+        .map((m) => Chamado.fromMap(Map<String, Object?>.from(m)))
+        .toList();
+    _atualizarListaProcessada();
+  }
+
   bool existeTituloRepetido(String titulo, {int? idIgnorar}) {
-    return _chamados.any(
+    return _chamadosBase.any(
       (c) =>
           c.titulo.trim().toLowerCase() == titulo.trim().toLowerCase() &&
           c.id != idIgnorar,
@@ -68,31 +81,34 @@ class ChamadoProvider extends ChangeNotifier {
 
   Future<bool> adicionarChamado(Chamado chamado) async {
     if (existeTituloRepetido(chamado.titulo)) return false;
+
     final map = chamado.toMap();
-    // remove id to allow AUTOINCREMENT
     map.remove('id');
+
     final id = await DbHelper.instance.insertChamado(
       Map<String, dynamic>.from(map),
     );
+
     if (id > 0) {
       final novo = chamado.copyWith(id: id);
-      _chamados.add(novo);
-      notifyListeners();
+      _chamadosBase = [..._chamadosBase, novo];
+      _atualizarListaProcessada();
       return true;
     }
     return false;
   }
 
   Future<void> atualizarChamado(Chamado chamado) async {
-    final idx = _chamados.indexWhere((c) => c.id == chamado.id);
+    final idx = _chamadosBase.indexWhere((c) => c.id == chamado.id);
     if (idx != -1) {
       await DbHelper.instance.updateChamado(
         chamado.toMap().map((k, v) => MapEntry(k, v)),
       );
-      _chamados[idx] = chamado;
-      notifyListeners();
+      final novosChamados = [..._chamadosBase];
+      novosChamados[idx] = chamado;
+      _chamadosBase = novosChamados;
+
+      _atualizarListaProcessada();
     }
   }
-
-  // persistence now handled by DbHelper
 }

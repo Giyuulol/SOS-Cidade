@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chamado.dart';
 import '../provedores/chamado_provider.dart';
 
-class TelaCadastro extends StatefulWidget {
+class TelaCadastro extends ConsumerStatefulWidget {
   final Chamado? chamado;
 
   const TelaCadastro({super.key, this.chamado});
 
   @override
-  State<TelaCadastro> createState() => _TelaCadastroState();
+  ConsumerState<TelaCadastro> createState() => _TelaCadastroState();
 }
 
-class _TelaCadastroState extends State<TelaCadastro> {
+class _TelaCadastroState extends ConsumerState<TelaCadastro> {
   final _formKey = GlobalKey<FormState>();
   final _titulo = TextEditingController();
   final _descricao = TextEditingController();
@@ -61,7 +61,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
   Future<void> _salvar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final provider = Provider.of<ChamadoProvider>(context, listen: false);
+    final provider = ref.read(chamadoProvider);
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
@@ -78,65 +78,73 @@ class _TelaCadastroState extends State<TelaCadastro> {
       return;
     }
 
-    if (widget.chamado == null) {
-      final novo = Chamado(
-        id: DateTime.now().millisecondsSinceEpoch,
-        titulo: _titulo.text.trim(),
-        descricao: _descricao.text.trim(),
-        categoria: _categoria,
-        prioridade: _prioridade,
-        bairro: _bairro.text.trim(),
-        responsavel: _responsavel.text.trim().isEmpty
-            ? 'Cidadão Anônimo'
-            : _responsavel.text.trim(),
-        dataAbertura: DateTime.now(),
-        status: 'Aberto',
-      );
+    try {
+      if (widget.chamado == null) {
+        final novo = Chamado(
+          id: DateTime.now().millisecondsSinceEpoch,
+          titulo: _titulo.text.trim(),
+          descricao: _descricao.text.trim(),
+          categoria: _categoria,
+          prioridade: _prioridade,
+          bairro: _bairro.text.trim(),
+          responsavel: _responsavel.text.trim(),
+          dataAbertura: DateTime.now(),
+          status: 'Aberto',
+        );
 
-      final ok = await provider.adicionarChamado(novo);
-      if (ok) {
+        final ok = await provider.adicionarChamado(novo);
+        if (ok) {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Chamado criado com sucesso!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+          navigator.pop();
+        } else {
+          messenger.showSnackBar(
+            const SnackBar(
+              content: Text('Falha ao criar chamado.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      } else {
+        final existente = widget.chamado!;
+        final atualizado = existente.copyWith(
+          titulo: _titulo.text.trim(),
+          descricao: _descricao.text.trim(),
+          categoria: _categoria,
+          prioridade: _prioridade,
+          bairro: _bairro.text.trim(),
+          responsavel: _responsavel.text.trim(),
+        );
+        await provider.atualizarChamado(atualizado);
         messenger.showSnackBar(
           const SnackBar(
-            content: Text('Chamado criado com sucesso!'),
+            content: Text('Chamado atualizado.'),
             backgroundColor: Colors.green,
           ),
         );
         navigator.pop();
-      } else {
-        messenger.showSnackBar(
-          const SnackBar(
-            content: Text('Falha ao criar chamado.'),
-            backgroundColor: Colors.redAccent,
-          ),
-        );
       }
-    } else {
-      final existente = widget.chamado!;
-      final atualizado = existente.copyWith(
-        titulo: _titulo.text.trim(),
-        descricao: _descricao.text.trim(),
-        categoria: _categoria,
-        prioridade: _prioridade,
-        bairro: _bairro.text.trim(),
-        responsavel: _responsavel.text.trim().isEmpty
-            ? 'Cidadão Anônimo'
-            : _responsavel.text.trim(),
-      );
-      await provider.atualizarChamado(atualizado);
+    } catch (e) {
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('Chamado atualizado.'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text('Erro interno: $e (O banco SQLite não roda na Web)'),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 5),
         ),
       );
-      navigator.pop();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Novo chamado')),
+      appBar: AppBar(
+        title: Text(widget.chamado == null ? 'Novo chamado' : 'Editar chamado'),
+      ),
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(16.0),
@@ -185,9 +193,12 @@ class _TelaCadastroState extends State<TelaCadastro> {
                   controller: _responsavel,
                   enabled: _canEdit,
                   decoration: const InputDecoration(
-                    labelText: 'Responsável (opcional)',
+                    labelText: 'Responsável',
                     border: OutlineInputBorder(),
                   ),
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Informe o responsável'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
