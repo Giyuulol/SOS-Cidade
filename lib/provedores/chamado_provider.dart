@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import "package:flutter_riverpod/legacy.dart";
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../models/chamado.dart';
 import '../database/db_helper.dart';
 
@@ -22,29 +23,18 @@ class ChamadoProvider extends ChangeNotifier {
       _chamadosProcessados.where((c) => c.status == 'Em Andamento').length;
   int get concluidos =>
       _chamadosProcessados.where((c) => c.status == 'Concluído').length;
-  int get criticos =>
-      _chamadosProcessados.where((c) => c.prioridade == 'Crítica').length;
+  int get criticos => _chamadosProcessados
+      .where((c) => c.prioridade == 'Crítica' && c.status != 'Concluído')
+      .length;
 
-  bool get exibirAlertaCritico =>
-      _chamadosProcessados
-          .where((c) => c.prioridade == 'Crítica' && c.status != 'Concluído')
-          .length >
-      5;
+  bool get exibirAlertaCritico => criticos > 5;
 
   void _atualizarListaProcessada() {
-    final agora = DateTime.now();
+    final listaOrdenada = List<Chamado>.from(_chamadosBase);
 
-    List<Chamado> listaFiltrada = _chamadosBase.where((c) {
-      if (c.status.toLowerCase() == 'concluído') {
-        final horasDesdeFechamento = agora.difference(c.dataAbertura).inHours;
-        return horasDesdeFechamento < 12;
-      }
-      return true;
-    }).toList();
-
-    listaFiltrada.sort((a, b) {
-      int peso(String p) {
-        switch (p.toLowerCase()) {
+    listaOrdenada.sort((a, b) {
+      int peso(String prioridade) {
+        switch (prioridade.toLowerCase()) {
           case 'crítica':
             return 4;
           case 'alta':
@@ -56,10 +46,18 @@ class ChamadoProvider extends ChangeNotifier {
         }
       }
 
-      return peso(b.prioridade).compareTo(peso(a.prioridade));
+      final comparacaoPrioridade = peso(
+        b.prioridade,
+      ).compareTo(peso(a.prioridade));
+
+      if (comparacaoPrioridade != 0) {
+        return comparacaoPrioridade;
+      }
+
+      return b.dataAbertura.compareTo(a.dataAbertura);
     });
 
-    _chamadosProcessados = listaFiltrada;
+    _chamadosProcessados = listaOrdenada;
     notifyListeners();
   }
 

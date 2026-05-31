@@ -51,3 +51,8 @@ app.*.symbols
 app.*.map.json
 # Arquivos de ambiente sensíveis (nunca suba chaves de API/senhas!)
 .env
+
+# IA context files
+AGENTS.md
+MEMORIES.md
+PLANS.md
