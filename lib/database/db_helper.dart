@@ -58,21 +58,8 @@ class DbHelper {
     return await db.update('chamados', row, where: 'id = ?', whereArgs: [id]);
   }
 
-  Future<int> deleteChamado(int id) async {
-    final db = await instance.database;
-    return await db.delete('chamados', where: 'id = ?', whereArgs: [id]);
-  }
-
   Future<List<Map<String, dynamic>>> fetchChamados() async {
     final db = await instance.database;
     return await db.query('chamados');
-  }
-
-  Future<int> checkChamadosCriticos() async {
-    final db = await instance.database;
-    final result = await db.rawQuery(
-      'SELECT COUNT(*) FROM chamados WHERE prioridade = "Crítica" AND status != "Concluído"',
-    );
-    return Sqflite.firstIntValue(result) ?? 0;
   }
 }

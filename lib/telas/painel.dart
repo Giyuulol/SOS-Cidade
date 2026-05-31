@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chamado.dart';
 import '../provedores/chamado_provider.dart';
 import '../utilitarios/formatadores_data.dart';
+import '../utilitarios/constantes.dart'; // <-- 1. Import adicionado aqui
 import 'cadastro.dart';
 
 class TelaPainel extends ConsumerStatefulWidget {
@@ -39,36 +40,12 @@ class _EstadoTelaPainel extends ConsumerState<TelaPainel> {
   Widget build(BuildContext context) {
     final provider = ref.watch(chamadoProvider);
     final chamados = provider.chamados;
-
-    final total = chamados.length;
-    final abertos = chamados
-        .where((chamado) => chamado.status == 'Aberto')
-        .length;
-    final andamento = chamados
-        .where((chamado) => chamado.status == 'Em Andamento')
-        .length;
-    final concluidos = chamados
-        .where((chamado) => chamado.status == 'Concluído')
-        .length;
-    final criticos = chamados
-        .where((chamado) => chamado.prioridade == 'Crítica')
-        .length;
-
-    final chamadosOrdenados = List<Chamado>.from(chamados)
-      ..sort((a, b) {
-        int pesoPrioridade(String p) {
-          if (p == 'Crítica') return 4;
-          if (p == 'Alta') return 3;
-          if (p == 'Média') return 2;
-          return 1;
-        }
-
-        final comparacao = pesoPrioridade(
-          b.prioridade,
-        ).compareTo(pesoPrioridade(a.prioridade));
-        if (comparacao != 0) return comparacao;
-        return b.dataAbertura.compareTo(a.dataAbertura);
-      });
+    final total = provider.total;
+    final abertos = provider.abertos;
+    final andamento = provider.emAndamento;
+    final concluidos = provider.concluidos;
+    final criticos = provider.criticos;
+    final exibirAlertaCritico = provider.exibirAlertaCritico;
 
     return Scaffold(
       appBar: AppBar(
@@ -79,7 +56,10 @@ class _EstadoTelaPainel extends ConsumerState<TelaPainel> {
             child: Center(
               child: Text(
                 formatarDataHora(_now),
-                style: Theme.of(context).textTheme.labelLarge,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  color: Theme.of(context).colorScheme.onPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ),
@@ -101,7 +81,7 @@ class _EstadoTelaPainel extends ConsumerState<TelaPainel> {
           children: [
             _HeaderSummary(total: total, currentDateTime: _now),
             const SizedBox(height: 12),
-            if (criticos > 5)
+            if (exibirAlertaCritico)
               Container(
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.errorContainer,
@@ -148,50 +128,51 @@ class _EstadoTelaPainel extends ConsumerState<TelaPainel> {
                   ),
                 ),
               ),
-            if (criticos > 5) const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _StatCard(
-                    title: 'Abertos',
-                    value: abertos,
-                    icon: Icons.mark_email_unread_outlined,
-                    color: Colors.orange,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Andamento',
-                    value: andamento,
-                    icon: Icons.sync,
-                    color: Colors.amber,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Concluídos',
-                    value: concluidos,
-                    icon: Icons.check_circle_outline,
-                    color: Colors.green,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatCard(
-                    title: 'Críticos',
-                    value: criticos,
-                    icon: Icons.report_outlined,
-                    color: Colors.red,
-                  ),
-                ),
-              ],
+            if (exibirAlertaCritico) const SizedBox(height: 12),
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 700;
+
+                return GridView.count(
+                  crossAxisCount: isCompact ? 2 : 4,
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  crossAxisSpacing: 8,
+                  mainAxisSpacing: 8,
+                  childAspectRatio: isCompact ? 1.35 : 1,
+                  children: [
+                    _StatCard(
+                      title: 'Abertos',
+                      value: abertos,
+                      icon: Icons.mark_email_unread_outlined,
+                      color: Colors.orange,
+                    ),
+                    _StatCard(
+                      title: 'Em andamento',
+                      value: andamento,
+                      icon: Icons.sync,
+                      color: Colors.amber,
+                    ),
+                    _StatCard(
+                      title: 'Concluídos',
+                      value: concluidos,
+                      icon: Icons.check_circle_outline,
+                      color: Colors.green,
+                    ),
+                    _StatCard(
+                      title: 'Críticos',
+                      value: criticos,
+                      icon: Icons.report_outlined,
+                      color: Colors.red,
+                    ),
+                  ],
+                );
+              },
             ),
             const SizedBox(height: 24),
             Text('Chamados ', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
-            ...chamadosOrdenados.map(
+            ...chamados.map(
               (chamado) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _ChamadoCard(
@@ -310,43 +291,19 @@ class _ChamadoCard extends StatelessWidget {
   final DateTime currentDateTime;
   final ValueChanged<String> onAlterarStatus;
 
-  static const List<String> _statusDisponiveis = [
-    'Aberto',
-    'Em Andamento',
-    'Concluído',
-  ];
+  // 2. A lista manual _statusDisponiveis foi apagada daqui.
 
   @override
   Widget build(BuildContext context) {
     final priorityColor = _priorityColor(chamado.prioridade);
+    final isConcluido = chamado.status == 'Concluído';
 
     return Card(
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        leading: CircleAvatar(
-          backgroundColor: priorityColor.withValues(alpha: 0.12),
-          child: Icon(_categoryIcon(chamado.categoria), color: priorityColor),
-        ),
-        title: Text(chamado.titulo),
-        subtitle: Padding(
-          padding: const EdgeInsets.only(top: 6),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('${chamado.categoria} • ${chamado.bairro}'),
-              const SizedBox(height: 2),
-              Text(
-                '${formatarTempoDecorrido(chamado.dataAbertura, currentDateTime)} • ${formatarDataHora(chamado.dataAbertura)}',
-              ),
-              const SizedBox(height: 2),
-              Text('Status: ${chamado.status}'),
-            ],
-          ),
-        ),
-        isThreeLine: true,
-        onTap: chamado.status == 'Concluído'
+      child: InkWell(
+        onTap: isConcluido
             ? null
             : () {
                 Navigator.of(context).push(
@@ -355,84 +312,134 @@ class _ChamadoCard extends StatelessWidget {
                   ),
                 );
               },
-        trailing: FittedBox(
-          fit: BoxFit.scaleDown,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
           child: Column(
-            mainAxisSize: MainAxisSize.min, // Corrigido aqui
-            crossAxisAlignment: CrossAxisAlignment.end,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Chip(
-                label: Text(chamado.prioridade),
-                backgroundColor: priorityColor.withValues(alpha: 0.12),
-                side: BorderSide(color: priorityColor.withValues(alpha: 0.25)),
-                labelStyle: TextStyle(
-                  color: priorityColor,
-                  fontWeight: FontWeight.w600,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  CircleAvatar(
+                    backgroundColor: priorityColor.withValues(alpha: 0.12),
+                    child: Icon(
+                      _categoryIcon(chamado.categoria),
+                      color: priorityColor,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      chamado.titulo,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Chip(
+                    label: Text(chamado.prioridade),
+                    backgroundColor: priorityColor.withValues(alpha: 0.12),
+                    side: BorderSide(
+                      color: priorityColor.withValues(alpha: 0.25),
+                    ),
+                    labelStyle: TextStyle(
+                      color: priorityColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              Text('Categoria: ${chamado.categoria}'),
+              const SizedBox(height: 4),
+              Text('Bairro: ${chamado.bairro}'),
+              const SizedBox(height: 4),
+              Text('Data: ${formatarDataHora(chamado.dataAbertura)}'),
+              const SizedBox(height: 4),
+
+              // 3. O parâmetro status foi adicionado na função de tempo
+              Text(
+                formatarTempoDecorrido(
+                  chamado.dataAbertura,
+                  currentDateTime,
+                  status: chamado.status,
                 ),
               ),
-              if (chamado.status == 'Concluído')
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.lock_outline,
-                        size: 14,
-                        color: Colors.grey,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Encerrado',
-                        style: Theme.of(context).textTheme.labelMedium
-                            ?.copyWith(
-                              color: Colors.grey,
-                              fontWeight: FontWeight.bold,
-                            ),
-                      ),
-                    ],
-                  ),
-                )
-              else
-                PopupMenuButton<String>(
-                  tooltip: 'Alterar status',
-                  onSelected: onAlterarStatus,
-                  itemBuilder: (context) => _statusDisponiveis
-                      .map(
-                        (status) =>
-                            PopupMenuItem(value: status, child: Text(status)),
+
+              const SizedBox(height: 4),
+              Text('Status: ${chamado.status}'),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: isConcluido
+                    ? Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(
+                            Icons.lock_outline,
+                            size: 14,
+                            color: Colors.grey,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Encerrado',
+                            style: Theme.of(context).textTheme.labelMedium
+                                ?.copyWith(
+                                  color: Colors.grey,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                          ),
+                        ],
                       )
-                      .toList(),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Theme.of(context).primaryColor),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          'Mudar status',
-                          style: TextStyle(
-                            color: Theme.of(context).primaryColor,
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
+                    : PopupMenuButton<String>(
+                        tooltip: 'Alterar status',
+                        onSelected: onAlterarStatus,
+
+                        // 4. Usando a central de constantes no menu
+                        itemBuilder: (context) => ConstantesChamado.status
+                            .map(
+                              (status) => PopupMenuItem(
+                                value: status,
+                                child: Text(status),
+                              ),
+                            )
+                            .toList(),
+
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).primaryColor,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                'Mudar status',
+                                style: TextStyle(
+                                  color: Theme.of(context).primaryColor,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(width: 4),
+                              Icon(
+                                Icons.arrow_drop_down,
+                                size: 16,
+                                color: Theme.of(context).primaryColor,
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 4),
-                        Icon(
-                          Icons.arrow_drop_down,
-                          size: 16,
-                          color: Theme.of(context).primaryColor,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+                      ),
+              ),
             ],
           ),
         ),

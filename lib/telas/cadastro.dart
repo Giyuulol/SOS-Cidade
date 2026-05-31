@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/chamado.dart';
 import '../provedores/chamado_provider.dart';
+import '../utilitarios/formatadores_data.dart';
+import '../utilitarios/constantes.dart';
+import 'package:flutter/services.dart';
 
 class TelaCadastro extends ConsumerStatefulWidget {
   final Chamado? chamado;
@@ -18,25 +21,21 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
   final _descricao = TextEditingController();
   final _bairro = TextEditingController();
   final _responsavel = TextEditingController();
-  String _categoria = 'Trânsito';
-  String _prioridade = 'Baixa';
 
-  final List<String> _categorias = [
-    'Trânsito',
-    'Iluminação',
-    'Saneamento',
-    'Segurança',
-    'Limpeza Urbana',
-    'Desastre Natural',
-  ];
+  String _categoria = ConstantesChamado.categorias.first;
+  String _prioridade = ConstantesChamado.prioridades.first;
 
-  final List<String> _prioridades = ['Baixa', 'Média', 'Alta', 'Crítica'];
+  late final DateTime _dataAbertura;
+  late final String _status;
+
   bool _canEdit = true;
 
   @override
   void initState() {
     super.initState();
     final existente = widget.chamado;
+    _dataAbertura = existente?.dataAbertura ?? DateTime.now();
+    _status = existente?.status ?? ConstantesChamado.status.first;
     if (existente != null) {
       _titulo.text = existente.titulo;
       _descricao.text = existente.descricao;
@@ -59,7 +58,9 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
   }
 
   Future<void> _salvar() async {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      return;
+    }
 
     final provider = ref.read(chamadoProvider);
     final messenger = ScaffoldMessenger.of(context);
@@ -88,8 +89,8 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
           prioridade: _prioridade,
           bairro: _bairro.text.trim(),
           responsavel: _responsavel.text.trim(),
-          dataAbertura: DateTime.now(),
-          status: 'Aberto',
+          dataAbertura: _dataAbertura,
+          status: _status,
         );
 
         final ok = await provider.adicionarChamado(novo);
@@ -131,7 +132,7 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
     } catch (e) {
       messenger.showSnackBar(
         SnackBar(
-          content: Text('Erro interno: $e (O banco SQLite não roda na Web)'),
+          content: Text('Não foi possível salvar o chamado: $e'),
           backgroundColor: Colors.red,
           duration: const Duration(seconds: 5),
         ),
@@ -155,55 +156,119 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
                 TextFormField(
                   controller: _titulo,
                   enabled: _canEdit,
+                  maxLength: 50,
                   decoration: const InputDecoration(
                     labelText: 'Título',
                     border: OutlineInputBorder(),
+                    counterText: '',
+                    errorMaxLines: 2,
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Informe o título'
-                      : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.deny(RegExp(r'[<>{}]')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Informe o título';
+                    }
+                    if (v.trim().length < 5) {
+                      return 'O título deve ter no mínimo 5 letras';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _descricao,
                   enabled: _canEdit,
                   maxLines: 4,
+                  maxLength: 300,
                   decoration: const InputDecoration(
                     labelText: 'Descrição',
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Informe a descrição'
-                      : null,
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Informe a descrição';
+                    }
+                    if (v.trim().length < 10) {
+                      return 'Dê mais detalhes (mínimo 10 caracteres)';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _bairro,
                   enabled: _canEdit,
+                  maxLength: 50,
                   decoration: const InputDecoration(
                     labelText: 'Bairro',
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Informe o bairro'
-                      : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'[a-zA-ZÀ-ÿ0-9\s\-]'),
+                    ),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Informe o bairro';
+                    }
+                    if (v.trim().length < 3) {
+                      return 'Bairro muito curto';
+                    }
+                    return null;
+                  },
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _responsavel,
                   enabled: _canEdit,
+                  maxLength: 50,
                   decoration: const InputDecoration(
                     labelText: 'Responsável',
                     border: OutlineInputBorder(),
+                    counterText: '',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Informe o responsável'
-                      : null,
+                  inputFormatters: [
+                    FilteringTextInputFormatter.allow(RegExp(r'[a-zA-ZÀ-ÿ\s]')),
+                  ],
+                  validator: (v) {
+                    if (v == null || v.trim().isEmpty) {
+                      return 'Informe o responsável';
+                    }
+                    if (v.trim().split(RegExp(r'\s+')).length < 2) {
+                      return 'Informe nome e sobrenome';
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: formatarDataHora(_dataAbertura),
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Data de abertura',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.lock_outline),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  initialValue: _status,
+                  readOnly: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Status',
+                    border: OutlineInputBorder(),
+                    suffixIcon: Icon(Icons.lock_outline),
+                  ),
                 ),
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: _categoria,
-                  items: _categorias
+                  items: ConstantesChamado.categorias
                       .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
                   onChanged: _canEdit
@@ -217,7 +282,7 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
                 const SizedBox(height: 12),
                 DropdownButtonFormField<String>(
                   initialValue: _prioridade,
-                  items: _prioridades
+                  items: ConstantesChamado.prioridades
                       .map((p) => DropdownMenuItem(value: p, child: Text(p)))
                       .toList(),
                   onChanged: _canEdit
