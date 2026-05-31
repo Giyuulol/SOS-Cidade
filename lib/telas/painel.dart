@@ -54,6 +54,22 @@ class _EstadoTelaPainel extends ConsumerState<TelaPainel> {
         .where((chamado) => chamado.prioridade == 'Crítica')
         .length;
 
+    final chamadosOrdenados = List<Chamado>.from(chamados)
+      ..sort((a, b) {
+        int pesoPrioridade(String p) {
+          if (p == 'Crítica') return 4;
+          if (p == 'Alta') return 3;
+          if (p == 'Média') return 2;
+          return 1;
+        }
+
+        final comparacao = pesoPrioridade(
+          b.prioridade,
+        ).compareTo(pesoPrioridade(a.prioridade));
+        if (comparacao != 0) return comparacao;
+        return b.dataAbertura.compareTo(a.dataAbertura);
+      });
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('SOS Cidade'),
@@ -175,7 +191,7 @@ class _EstadoTelaPainel extends ConsumerState<TelaPainel> {
             const SizedBox(height: 24),
             Text('Chamados ', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 12),
-            ...chamados.map(
+            ...chamadosOrdenados.map(
               (chamado) => Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _ChamadoCard(
@@ -330,11 +346,15 @@ class _ChamadoCard extends StatelessWidget {
           ),
         ),
         isThreeLine: true,
-        onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => TelaCadastro(chamado: chamado)),
-          );
-        },
+        onTap: chamado.status == 'Concluído'
+            ? null
+            : () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => TelaCadastro(chamado: chamado),
+                  ),
+                );
+              },
         trailing: FittedBox(
           fit: BoxFit.scaleDown,
           child: Column(

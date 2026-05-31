@@ -51,7 +51,7 @@ class DbHelper {
       whereArgs: [id],
     );
     if (chamadoAtual.isNotEmpty &&
-        chamadoAtual.first['status'] == 'concluído') {
+        chamadoAtual.first['status'].toString().toLowerCase() == 'concluído') {
       throw Exception('Não é possível editar um chamado concluído.');
     }
 
@@ -65,10 +65,7 @@ class DbHelper {
 
   Future<List<Map<String, dynamic>>> fetchChamados() async {
     final db = await instance.database;
-    return await db.query(
-      'chamados',
-      orderBy: 'prioridade DESC, dataAbertura DESC',
-    );
+    return await db.query('chamados');
   }
 
   Future<int> checkChamadosCriticos() async {
