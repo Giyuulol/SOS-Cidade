@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../models/chamado.dart';
 import '../provedores/chamado_provider.dart';
-import '../utilitarios/formatadores_data.dart';
 import '../utilitarios/constantes.dart';
-import 'package:flutter/services.dart';
+import '../utilitarios/formatadores_data.dart';
 
 class TelaCadastro extends ConsumerStatefulWidget {
   final Chamado? chamado;
@@ -164,7 +165,9 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
                     errorMaxLines: 2,
                   ),
                   inputFormatters: [
-                    FilteringTextInputFormatter.deny(RegExp(r'[<>{}]')),
+                    FilteringTextInputFormatter.allow(
+                      RegExp(r'[a-zA-ZÀ-ÖØ-öø-ÿ0-9 ]'),
+                    ),
                   ],
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
@@ -181,12 +184,25 @@ class _TelaCadastroState extends ConsumerState<TelaCadastro> {
                   controller: _descricao,
                   enabled: _canEdit,
                   maxLines: 4,
-                  maxLength: 300,
+                  maxLength: 1000,
                   decoration: const InputDecoration(
                     labelText: 'Descrição',
                     border: OutlineInputBorder(),
-                    counterText: '',
                   ),
+                  buildCounter:
+                      (
+                        context, {
+                        required currentLength,
+                        required isFocused,
+                        required maxLength,
+                      }) {
+                        final restantes = (maxLength ?? 0) - currentLength;
+                        final texto = restantes == 1
+                            ? '1 caractere restante'
+                            : '$restantes caracteres restantes';
+
+                        return Text(texto);
+                      },
                   validator: (v) {
                     if (v == null || v.trim().isEmpty) {
                       return 'Informe a descrição';

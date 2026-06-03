@@ -9,6 +9,7 @@ class Chamado {
     required this.responsavel,
     required this.dataAbertura,
     required this.status,
+    this.favorito = false,
   });
 
   final int? id;
@@ -20,6 +21,7 @@ class Chamado {
   final String responsavel;
   final DateTime dataAbertura;
   final String status;
+  final bool favorito;
 
   Chamado copyWith({
     int? id,
@@ -31,6 +33,7 @@ class Chamado {
     String? responsavel,
     DateTime? dataAbertura,
     String? status,
+    bool? favorito,
   }) {
     return Chamado(
       id: id ?? this.id,
@@ -42,6 +45,7 @@ class Chamado {
       responsavel: responsavel ?? this.responsavel,
       dataAbertura: dataAbertura ?? this.dataAbertura,
       status: status ?? this.status,
+      favorito: favorito ?? this.favorito,
     );
   }
 
@@ -59,6 +63,7 @@ class Chamado {
         (map['dataAbertura'] ?? map['data_abertura']) as String,
       ),
       status: map['status'] as String,
+      favorito: (map['favorito'] as int? ?? 0) == 1,
     );
   }
 
@@ -73,6 +78,7 @@ class Chamado {
       'responsavel': responsavel,
       'dataAbertura': dataAbertura.toIso8601String(),
       'status': status,
+      'favorito': favorito ? 1 : 0,
     };
   }
 }

@@ -56,3 +56,15 @@ app.*.map.json
 AGENTS.md
 MEMORIES.md
 PLANS.md
+
+# Test outputs / debug files
+test_debug.txt
+test_output.txt
+test_output/
+
+# SQLite databases / backups
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+*.sqlite

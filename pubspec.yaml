@@ -59,6 +59,18 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
+  fonts:
+    - family: Rawline
+      fonts:
+        - asset: assets/fonts/rawline-300.ttf
+          weight: 300
+        - asset: assets/fonts/rawline-400.ttf
+          weight: 400
+        - asset: assets/fonts/rawline-500.ttf
+          weight: 500
+        - asset: assets/fonts/rawline-700.ttf
+          weight: 700
+
   # To add assets to your application, add an assets section, like this:
   # assets:
   #   - images/a_dot_burr.jpeg
